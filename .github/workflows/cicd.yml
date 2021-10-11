@@ -1,0 +1,39 @@
+name: Build, Test, and Deploy smart contracts
+on:
+  push:
+    branches: [ dev ]
+  
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go env
+        uses: actions/setup-go@v2.1.4
+      - name: Checkout contracts and scripts
+        uses: actions/checkout@v2
+        with:
+          path: main
+      - name: Download LocalTerra
+        uses: actions/checkout@v2
+        with:
+          repository: 'Vespene-Protocol/LocalTerra'
+          path: LocalTerra
+      - name: Start LocalTerra
+        run: cd LocalTerra && docker-compose up
+      - name: Build artifact
+        run: cd main && docker run --rm -v "$(pwd)":/code --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry cosmwasm/rust-optimizer:${OPTIMIZER_VERSION}
+      - name: Run unit tests
+        run: cargo test --verbose
+      - name: Setup Node.js
+        uses: actions/setup-node@2.4.1
+        with:
+          node-version: 14.x
+      - name: Install deps
+        run: npm install
+      - name: Deploy contract
+        run: ts-node deploy.ts
